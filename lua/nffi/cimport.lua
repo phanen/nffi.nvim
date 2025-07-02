@@ -14,9 +14,6 @@ local map = vim.tbl_map
 local eq = t_global.eq
 local trim = vim.trim
 
--- local cwd = vim.uv.cwd()
--- vim.uv.chdir('/home/phan/b/neovim/')
-
 -- add some standard header locations
 for _, p in ipairs(paths.include_paths) do
   Preprocess.add_to_include_path(p)
@@ -27,7 +24,7 @@ if paths.apple_sysroot ~= '' then
   Preprocess.add_apple_sysroot(paths.apple_sysroot)
 end
 
-local child_pid = nil --- @type integer?
+local child_pid = 0 --- @type integer?
 --- @generic F: function
 --- @param func F
 --- @return F
@@ -159,6 +156,7 @@ local function filter_complex_blocks(body)
         -- used by macOS headers
         or string.find(line, 'typedef enum : ')
         or string.find(line, 'mach_vm_range_recipe')
+        or string.find(line, 'struct timespec')
       )
     then
       -- Remove GCC's extension keyword which is just used to disable warnings.
@@ -214,20 +212,21 @@ local function cimport(...)
     if not (path:sub(1, 1) == '/' or path:sub(1, 1) == '.' or path:sub(2, 2) == ':') then
       path = './' .. path
     end
-    print(path)
-    path = vim.fs.joinpath('/home/phan/b/neovim/', path)
+    path = vim.fs.normalize(vim.fs.joinpath(vim.env.NVIM_ROOT, path))
+    -- print(path)
     if not preprocess_cache[path] then
       local body --- @type string
       body, previous_defines = Preprocess.preprocess(previous_defines, path)
+      -- print(body)
       -- format it (so that the lines are "unique" statements), also filter out
       -- Objective-C blocks
-      -- if os.getenv('NVIM_TEST_PRINT_I') == '1' then
-      local lnum = 0
-      for line in body:gmatch('[^\n]+') do
-        lnum = lnum + 1
-        print(lnum, line)
+      if os.getenv('NVIM_TEST_PRINT_I') == '1' then
+        local lnum = 0
+        for line in body:gmatch('[^\n]+') do
+          lnum = lnum + 1
+          print(lnum, line)
+        end
       end
-      -- end
       body = formatc(body)
       body = filter_complex_blocks(body)
       -- add the formatted lines to a set
@@ -268,10 +267,10 @@ local function cimport(...)
 end
 
 local function cimport_immediate(...)
-  local saved_pid = child_pid
-  child_pid = 0
+  -- local saved_pid = child_pid
+  -- child_pid = 0
   local err, emsg = pcall(cimport, ...)
-  child_pid = saved_pid
+  -- child_pid = saved_pid
   if not err then
     -- io.stderr:write(tostring(emsg) .. '\n')
     print(tostring(emsg) .. '\n')
@@ -294,7 +293,8 @@ local function _cimportstr(preprocess_cache, path)
   -- print(path)
   -- print(body)
   local ok, emsg = pcall(cdef, body)
-  assert(ok or emsg:match('redefine'))
+  -- assert(ok or emsg:match('redefine'))
+  assert(ok, emsg)
   imported:add(path)
 
   return lib
@@ -486,7 +486,7 @@ function sc.write(wr, s)
   return total_bytes_written
 end
 
-sc.close = function(...) return ffi.C.close(...) end
+sc.close = ffi.C.close
 
 --- @param pid integer
 --- @return integer
@@ -509,7 +509,7 @@ function sc.wait(pid)
   return stat_loc[0]
 end
 
-sc.exit = function(...) return ffi.C._exit(...) end
+sc.exit = ffi.C._exit
 
 --- @param lst string[]
 --- @return string
@@ -922,5 +922,4 @@ local M = {
 --- @class test.unit.testutil: test.unit.testutil.module, test.testutil
 M = vim.tbl_extend('error', M, t_global)
 
--- vim.uv.chdir(cwd)
 return M

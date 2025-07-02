@@ -1,11 +1,12 @@
 local M = {}
 
+local root = assert(vim.env.NVIM_ROOT, '$NVIM_ROOT is not set')
 M.include_paths = {}
 for p in
   (
-    '/home/phan/b/neovim/.deps/usr/include/luajit-2.1;/home/phan/b/neovim/.deps/usr/include;/home/phan/b/neovim/build/src/nvim/auto;/home/phan/b/neovim/build/include;/home/phan/b/neovim/build/cmake.config;/home/phan/b/neovim/src;/usr/include'
+    '%s/.deps/usr/include/luajit-2.1;%s/.deps/usr/include;%s/build/src/nvim/auto;%s/build/include;%s/build/cmake.config;%s/src;/usr/include'
     .. ';'
-  ):gmatch('[^;]+')
+  ):format(root, root, root, root, root, root):gmatch('[^;]+')
 do
   table.insert(M.include_paths, p)
 end
@@ -14,10 +15,10 @@ M.apple_sysroot = ''
 M.translations_enabled = 'OFF' == 'ON'
 M.is_asan = 'OFF' == 'ON'
 M.is_zig_build = false
-M.vterm_test_file = '/home/phan/b/neovim/build/test/vterm_test_output'
-M.test_build_dir = '/home/phan/b/neovim/build'
-M.test_source_path = '/home/phan/b/neovim'
-M.test_lua_prg = '/home/phan/b/neovim/.deps/usr/bin/luajit'
+M.vterm_test_file = ('%s/build/test/vterm_test_output'):format(root)
+M.test_build_dir = ('%s/build'):format(root)
+M.test_source_path = root
+M.test_lua_prg = ('%s/.deps/usr/bin/luajit'):format(root)
 M.test_luajit_prg = ''
 if M.test_luajit_prg == '' then
   if M.test_lua_prg:sub(-6) == 'luajit' then
@@ -26,7 +27,7 @@ if M.test_luajit_prg == '' then
     M.test_luajit_prg = nil
   end
 end
-table.insert(M.include_paths, '/home/phan/b/neovim/build/include')
-table.insert(M.include_paths, '/home/phan/b/neovim/build/src/nvim/auto')
+table.insert(M.include_paths, ('%s/build/include'):format(root))
+table.insert(M.include_paths, ('%s/build/src/nvim/auto'):format(root))
 
 return M
