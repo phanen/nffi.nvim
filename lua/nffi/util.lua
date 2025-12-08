@@ -528,10 +528,11 @@ function M.repeated_read_cmd(...)
   local data = {}
   local got_code = nil
   local stdout = assert(uv.new_pipe(false))
+  local stderr = assert(uv.new_pipe(false))
   local handle = assert(
     uv.spawn(
       cmd[1],
-      { args = vim.list_slice(cmd, 2), stdio = { nil, stdout, 2 }, hide = true },
+      { args = vim.list_slice(cmd, 2), stdio = { nil, stdout, stderr }, hide = true },
       function(code, _signal)
         got_code = code
       end
@@ -546,6 +547,17 @@ function M.repeated_read_cmd(...)
     end
   end)
 
+  local errdata = {}
+  stderr:read_start(function(err, chunk)
+    if err or chunk == nil then
+      stderr:read_stop()
+      stderr:close()
+    else
+      table.insert(errdata, chunk)
+      -- print(chunk)
+    end
+  end)
+
   while not stdout:is_closing() or got_code == nil do
     uv.run('once')
   end
@@ -553,6 +565,16 @@ function M.repeated_read_cmd(...)
   if got_code ~= 0 then
     error('command ' .. vim.inspect(cmd) .. 'unexpectedly exited with status ' .. got_code)
   end
+  vim.schedule(function()
+    -- vim.print(cmd)
+    if #errdata > 0 then
+      errdata = vim.split(table.concat(errdata), '\n')
+      M._errdata = errdata
+      -- vim.print(errdata)
+      -- vim.cmd.cgete([[luaeval('require("nffi.util")._errdata')]])
+      vim.cmd.cadde([[luaeval('require("nffi.util")._errdata')]])
+    end
+  end)
   handle:close()
   return table.concat(data)
 end
