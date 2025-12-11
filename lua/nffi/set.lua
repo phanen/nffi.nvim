@@ -1,3 +1,4 @@
+---@diagnostic disable
 -- a set class for fast union/diff, can always return a table with the lines
 -- in the same relative order in which they were added by calling the
 -- to_table method. It does this by keeping two lua tables that mirror each

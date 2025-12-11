@@ -2,12 +2,14 @@
 -- windows, will probably need quite a bit of adjustment to run there.
 
 local ffi = require('ffi')
-local global_t = require('nffi.util')
+local utils = require('nffi.util')
 
-local argss_to_cmd = global_t.argss_to_cmd
-local repeated_read_cmd = global_t.repeated_read_cmd
+local argss_to_cmd = utils.argss_to_cmd
+local repeated_read_cmd = utils.repeated_read_cmd
 
---- @alias Compiler {path: string[], type: string}
+---@class Compiler
+---@field path string[]
+---@field type? string
 
 --- @type Compiler[]
 local ccs = {}
@@ -83,7 +85,7 @@ local function headerize(headers, global)
   return table.concat(formatted, '\n')
 end
 
---- @class Gcc
+--- @class Gcc: Compiler
 --- @field path string
 --- @field preprocessor_extra_flags string[]
 --- @field get_defines_extra_flags string[]
@@ -91,9 +93,13 @@ end
 local Gcc = {
   -- https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html
   -- preprocessor_extra_flags = {"-Wno-error=macro-redefined"},
-  preprocessor_extra_flags = {},
-  get_defines_extra_flags = { '-std=c99', '-dM', '-E' },
-  get_declarations_extra_flags = { '-std=c99', '-P', '-E' },
+  -- preprocessor_extra_flags = {},
+  -- get_defines_extra_flags = { '-std=c99', '-dM', '-E' },
+  -- get_declarations_extra_flags = { '-std=c99', '-P', '-E' },
+  preprocessor_extra_flags = { '-Wno-error=macro-redefined' },
+  -- preprocessor_extra_flags = {},
+  get_defines_extra_flags = { '-Wno-error=macro-redefined', '-std=c99', '-dM', '-E' },
+  get_declarations_extra_flags = { '-Wno-error=macro-redefined', '-std=c99', '-P', '-E' },
 }
 
 --- @param name string
@@ -136,14 +142,13 @@ function Gcc:init_defines()
   self:undefine('__BLOCKS__')
 end
 
---- @param obj? Compiler
+--- @param obj Compiler
 --- @return Gcc
 function Gcc:new(obj)
-  obj = obj or {}
-  setmetatable(obj, self)
+  local gcc = setmetatable(obj, self)
   self.__index = self
   self:init_defines()
-  return obj
+  return gcc
 end
 
 --- @param ... string
@@ -166,11 +171,8 @@ end
 --- @param hdr string
 --- @return string[]?
 function Gcc:dependencies(hdr)
-  --- @type string
-  local cmd = argss_to_cmd(self.path, { '-M', hdr }) .. ' 2>&1'
-  local out = assert(io.popen(cmd))
-  local deps = out:read('*a')
-  out:close()
+  local cmd = argss_to_cmd(self.path, { '-M', hdr })
+  local deps = utils.run(cmd)
   if deps then
     return parse_make_deps(deps)
   end
@@ -243,7 +245,7 @@ function Gcc:preprocess(previous_defines, ...)
     )
   )
 
-  -- os.remove(pseudoheader_fname)
+  os.remove(pseudoheader_fname)
 
   return declarations, defines
 end
@@ -255,8 +257,8 @@ end
 --- @return Gcc?
 local function find_best_cc(compilers)
   for _, meta in pairs(compilers) do
-    local version = assert(io.popen(tostring(meta.path) .. ' -v 2>&1'))
-    version:close()
+    local cmd = vim.list_extend(vim.deepcopy(meta.path), { '-v' })
+    local version = utils.run(cmd)
     if version then
       return Gcc:new({ path = meta.path })
     end

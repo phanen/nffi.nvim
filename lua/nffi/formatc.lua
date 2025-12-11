@@ -1,3 +1,4 @@
+---@diagnostic disable: unused
 --[[ Copyright (c) 2009 Peter "Corsix" Cawley
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -223,7 +224,7 @@ local C_keywords = set { -- luacheck: ignore
 --
 --  The first one will have a lot of false positives (the line '{' for
 --  example), the second one is more unique.
---- @param string
+--- @param str string
 --- @return string
 local function formatc(str)
   local toks = TokeniseC(str)
@@ -292,7 +293,8 @@ local function standalone(...) -- luacheck: ignore
   Preprocess.add_to_include_path('./../../build/include')
   Preprocess.add_to_include_path('./../../.deps/usr/include')
 
-  local raw = Preprocess.preprocess('', arg[1])
+  ---@diagnostic disable-next-line: param-type-mismatch
+  local raw = Preprocess.preprocess('', _G.arg[1])
 
   local formatted
   if #arg == 2 and arg[2] == 'no' then
