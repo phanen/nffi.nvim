@@ -243,7 +243,7 @@ function Gcc:preprocess(previous_defines, ...)
     )
   )
 
-  os.remove(pseudoheader_fname)
+  -- os.remove(pseudoheader_fname)
 
   return declarations, defines
 end
