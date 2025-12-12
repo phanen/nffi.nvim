@@ -59,6 +59,7 @@ local function filter_complex_blocks(body)
         or line:find('typedef enum : ')
         or line:find('mach_vm_range_recipe')
         or line:find('struct timespec')
+        or (line:find('static', 1, true) and line:find('=', 1, true))
       )
     then
       -- Remove GCC's extension keyword which is just used to disable warnings.
