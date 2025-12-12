@@ -139,15 +139,30 @@ local function preprocess(path)
   return table.concat(new_lines, '\n')
 end
 
+local _init ---@type fun()?
+
 -- use this helper to import C files, you can pass multiple paths at once,
 -- this helper will return the C namespace of the nvim library.
 local function cimport(...)
+  if _init then
+    _init()
+  end
   for _, path in ipairs({ ... }) do
     path = vim.fs.normalize(vim.fs.joinpath(paths.root, path))
     preprocess_cache[path] = preprocess_cache[path] or preprocess(path)
     cimportstr(path, preprocess_cache[path])
   end
   return lib
+end
+
+_init = function()
+  _init = nil
+  return cimport(
+    'src/nvim/types_defs.h',
+    'src/nvim/main.h',
+    'src/nvim/os/time.h',
+    'src/nvim/os/fs.h'
+  )
 end
 
 local function get_progpath_mtime()
@@ -193,13 +208,6 @@ end
 local function cppimport(path)
   return cimport(paths.test_source_path .. '/test/includes/pre/' .. path)
 end
-
-cimport(
-  './src/nvim/types_defs.h',
-  './src/nvim/main.h',
-  './src/nvim/os/time.h',
-  './src/nvim/os/fs.h'
-)
 
 local function conv_enum(etab, eval)
   local n = tonumber(eval)
