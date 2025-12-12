@@ -6,7 +6,9 @@
 -- pacman -S neovim-git-debug (or cloned src)
 vim.env.NVIM_ROOT = '/usr/src/debug/neovim-git/neovim/'
 local nffi = require('nffi')
+-- ffi.load_cache()
 nffi.cimport('src/nvim/terminal.c')
+-- nffi.write_cache()
 api.nvim_create_autocmd({ 'FileType' }, {
   pattern = 'fzf',
   callback = function()
