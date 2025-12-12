@@ -79,7 +79,12 @@ local function headerize(headers, global)
   local fmt = global and '#include <%s>' or '#include "%s"'
   local formatted = {} --- @type string[]
   for _, hdr in ipairs(headers) do
-    formatted[#formatted + 1] = string.format(fmt, hdr)
+    if vim.uv.fs_stat(hdr) then
+      formatted[#formatted + 1] = string.format(fmt, hdr)
+    else
+      formatted[#formatted + 1] = string.format(fmt, hdr)
+      -- error(string.format('header file not found: %s', hdr))
+    end
   end
 
   return table.concat(formatted, '\n')
@@ -178,16 +183,14 @@ end
 --- @return string
 function Gcc:filter_standard_defines(defines)
   if not self.standard_defines then
-    local pseudoheader_fname = 'tmp_empty_pseudoheader.h'
+    local pseudoheader_fname = '/tmp/tmp_empty_pseudoheader.h'
     local pseudoheader_file = assert(io.open(pseudoheader_fname, 'w'))
     pseudoheader_file:close()
-    local standard_defines = assert(
-      repeated_read_cmd(
-        self.path,
-        self.preprocessor_extra_flags,
-        self.get_defines_extra_flags,
-        { pseudoheader_fname }
-      )
+    local standard_defines = repeated_read_cmd(
+      self.path,
+      self.preprocessor_extra_flags,
+      self.get_defines_extra_flags,
+      { pseudoheader_fname }
     )
     os.remove(pseudoheader_fname)
     self.standard_defines = {} --- @type table<string,true>
@@ -214,7 +217,7 @@ end
 function Gcc:preprocess(previous_defines, ...)
   -- create pseudo-header
   local pseudoheader = headerize({ ... }, false)
-  local pseudoheader_fname = 'tmp_pseudoheader.h'
+  local pseudoheader_fname = '/tmp/tmp_pseudoheader.h'
   local pseudoheader_file = assert(io.open(pseudoheader_fname, 'w'))
   pseudoheader_file:write(previous_defines)
   pseudoheader_file:write('\n')
@@ -222,23 +225,19 @@ function Gcc:preprocess(previous_defines, ...)
   pseudoheader_file:flush()
   pseudoheader_file:close()
 
-  local defines = assert(
-    repeated_read_cmd(
-      self.path,
-      self.preprocessor_extra_flags,
-      self.get_defines_extra_flags,
-      { pseudoheader_fname }
-    )
+  local defines = repeated_read_cmd(
+    self.path,
+    self.preprocessor_extra_flags,
+    self.get_defines_extra_flags,
+    { pseudoheader_fname }
   )
   defines = self:filter_standard_defines(defines)
 
-  local declarations = assert(
-    repeated_read_cmd(
-      self.path,
-      self.preprocessor_extra_flags,
-      self.get_declarations_extra_flags,
-      { pseudoheader_fname }
-    )
+  local declarations = repeated_read_cmd(
+    self.path,
+    self.preprocessor_extra_flags,
+    self.get_declarations_extra_flags,
+    { pseudoheader_fname }
   )
 
   os.remove(pseudoheader_fname)

@@ -13,6 +13,20 @@ for _, p in ipairs(paths.include_paths) do
   Preprocess.add_to_include_path(p)
 end
 
+local __FILE__ = debug.getinfo(1, 'S').source:gsub('^@', '')
+
+local function patch_includes()
+  local p = vim.fs.joinpath(vim.fn.fnamemodify(__FILE__, ':h:h:h:p'), 'patch')
+  local ps = {
+    ('%s/src/nvim'):format(p),
+    ('%s/src'):format(p),
+    ('%s/build/src/nvim/auto'):format(p),
+    ('%s/build/include'):format(p),
+    ('%s'):format(p),
+  }
+  Preprocess.add_to_include_path(unpack(ps))
+end
+
 -- add some nonstandard header locations
 if paths.apple_sysroot ~= '' then
   Preprocess.add_apple_sysroot(paths.apple_sysroot)
@@ -148,9 +162,9 @@ local function cimport(...)
     _init()
   end
   for _, path in ipairs({ ... }) do
-    path = vim.fs.normalize(vim.fs.joinpath(paths.root, path))
-    preprocess_cache[path] = preprocess_cache[path] or preprocess(path)
-    cimportstr(path, preprocess_cache[path])
+    local pathkey = vim.fs.normalize(vim.fs.joinpath(paths.root, path))
+    preprocess_cache[pathkey] = preprocess_cache[path] or preprocess(path)
+    cimportstr(path, preprocess_cache[pathkey])
   end
   return lib
 end
@@ -257,6 +271,7 @@ local sc = setmetatable({}, {
 })
 
 return {
+  patch_includes = patch_includes,
   cimport = cimport,
   dump_cache = dump_cache,
   load_cache = load_cache,

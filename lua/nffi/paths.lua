@@ -2,15 +2,18 @@ local M = {}
 
 local root = assert(vim.env.NVIM_ROOT, '$NVIM_ROOT is not set')
 M.root = root
-M.include_paths = {}
-for p in
-  (
-    '%s/.deps/usr/include/luajit-2.1;%s/.deps/usr/include;%s/build/src/nvim/auto;%s/build/include;%s/build/cmake.config;%s/src;/usr/include'
-    .. ';'
-  ):format(root, root, root, root, root, root):gmatch('[^;]+')
-do
-  table.insert(M.include_paths, p)
-end
+
+M.include_paths = {
+  ('%s/.deps/usr/include/luajit-2.1'):format(root),
+  ('%s/.deps/usr/include'):format(root),
+  ('%s/build/src/nvim/auto'):format(root),
+  ('%s/build/include'):format(root),
+  ('%s/build/cmake.config'):format(root),
+  ('%s/src'):format(root),
+  ('%s'):format(root),
+  '/usr/include',
+}
+
 M.apple_sysroot = ''
 
 M.translations_enabled = 'OFF' == 'ON'

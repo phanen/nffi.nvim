@@ -32,7 +32,7 @@ function M.argss_to_cmd(...)
   return cmd
 end
 
---- @return string?
+--- @return string
 function M.repeated_read_cmd(...)
   local cmd = M.argss_to_cmd(...)
   local data = {}
@@ -71,7 +71,7 @@ function M.repeated_read_cmd(...)
   end
 
   if got_code ~= 0 then
-    error('command ' .. vim.inspect(cmd) .. 'unexpectedly exited with status ' .. got_code)
+    error(('command %s (exit: %s) \n%s'):format(vim.inspect(cmd), got_code, vim.inspect(errdata)))
   end
   vim.schedule(function()
     -- vim.print(cmd)
