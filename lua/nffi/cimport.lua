@@ -59,7 +59,7 @@ local function filter_complex_blocks(body)
         or line:find('typedef enum : ')
         or line:find('mach_vm_range_recipe')
         or line:find('struct timespec')
-        or (line:find('static', 1, true) and line:find('=', 1, true))
+        or line:find('^%s+static%s+')
       )
     then
       -- Remove GCC's extension keyword which is just used to disable warnings.
@@ -108,6 +108,8 @@ local function preprocess(path)
   body, previous_defines = Preprocess.preprocess(previous_defines, path)
   -- format it (so that the lines are "unique" statements), also filter out
   -- Objective-C blocks
+  -- stylua: ignore
+  if os.getenv('NVIM_TEST_PRINT_I') == '1' then local lnum = 0 for line in body:gmatch('[^\n]+') do lnum = lnum + 1 print(lnum, line) end end
   body = formatc(body)
   body = filter_complex_blocks(body)
   -- add the formatted lines to a set
@@ -132,6 +134,8 @@ local function preprocess(path)
   -- request a sorted version of the new lines (same relative order as the
   -- original preprocessed file) and feed that to the LuaJIT ffi
   local new_lines = new_cdefs:to_table()
+  -- stylua: ignore
+  if os.getenv('NVIM_TEST_PRINT_CDEF') == '1' then for lnum, line in ipairs(new_lines) do print(lnum, line) end end
   return table.concat(new_lines, '\n')
 end
 

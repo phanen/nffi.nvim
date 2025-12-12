@@ -93,13 +93,9 @@ end
 local Gcc = {
   -- https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html
   -- preprocessor_extra_flags = {"-Wno-error=macro-redefined"},
-  -- preprocessor_extra_flags = {},
-  -- get_defines_extra_flags = { '-std=c99', '-dM', '-E' },
-  -- get_declarations_extra_flags = { '-std=c99', '-P', '-E' },
-  preprocessor_extra_flags = { '-Wno-error=macro-redefined' },
-  -- preprocessor_extra_flags = {},
-  get_defines_extra_flags = { '-Wno-error=macro-redefined', '-std=c99', '-dM', '-E' },
-  get_declarations_extra_flags = { '-Wno-error=macro-redefined', '-std=c99', '-P', '-E' },
+  preprocessor_extra_flags = {},
+  get_defines_extra_flags = { '-std=c99', '-dM', '-E' },
+  get_declarations_extra_flags = { '-std=c99', '-P', '-E' },
 }
 
 --- @param name string
