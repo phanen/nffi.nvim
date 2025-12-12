@@ -145,15 +145,29 @@ local function cimport(...)
   return lib
 end
 
-local cdef_cache = '/tmp/tmp/nffi_cdef_cache.lua'
-local function dump_cache()
-  vim.fn.mkdir(vim.fs.dirname(cdef_cache), 'p')
-  local f = assert(loadstring('return ' .. vim.inspect(preprocess_cache)))
-  assert(io.open(cdef_cache, 'w')):write(string.dump(f))
+local function get_progpath_mtime()
+  -- Get file stat for vim.v.progpath
+  local stat = vim.uv.fs_stat(vim.v.progpath)
+  return stat and stat.mtime.sec or 0
 end
--- TODO: always load cache based on timestamp of vim.v.progpath
+
+local function get_cache_path()
+  local cache_dir = vim.fn.stdpath('cache') .. '/ffi_cdef'
+  local mtime = get_progpath_mtime()
+  vim.fn.mkdir(cache_dir, 'p')
+  return string.format('%s/nffi_cdef_cache_%d.lua', cache_dir, mtime)
+end
+
+local function dump_cache()
+  local cache_path = get_cache_path()
+  vim.fn.mkdir(vim.fs.dirname(cache_path), 'p')
+  local f = assert(loadstring('return ' .. vim.inspect(preprocess_cache)))
+  assert(io.open(cache_path, 'w')):write(string.dump(f))
+end
+
 local function load_cache()
-  local f = loadfile(cdef_cache)
+  local cache_path = get_cache_path()
+  local f = loadfile(cache_path)
   if f then
     preprocess_cache = f()
   end
