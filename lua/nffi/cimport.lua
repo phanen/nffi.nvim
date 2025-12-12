@@ -5,7 +5,6 @@ local Set = require('nffi.set')
 local Preprocess = require('nffi.preprocess')
 local utils = require('nffi.util')
 local paths = utils.paths
--- local say = require('say')
 
 local trim = vim.trim
 
@@ -19,78 +18,15 @@ if paths.apple_sysroot ~= '' then
   Preprocess.add_apple_sysroot(paths.apple_sysroot)
 end
 
-local child_pid = 0 --- @type integer?
---- @generic F: function
---- @param func F
---- @return F
-local function only_separate(func)
-  return function(...)
-    if child_pid ~= 0 then
-      error('This function must be run in a separate process only')
-    end
-    return func(...)
-  end
-end
-
---- @class ChildCall
---- @field func function
---- @field args any[]
-
---- @class ChildCallLog
---- @field func string
---- @field args any[]
---- @field ret any?
-
-local child_calls_init = {} --- @type ChildCall[]
-local child_calls_mod --- @type ChildCall[]
-local child_calls_mod_once --- @type ChildCall[]?
-
-local function child_call(func, ret)
-  return function(...)
-    local child_calls = child_calls_mod or child_calls_init
-    if child_pid ~= 0 then
-      child_calls[#child_calls + 1] = { func = func, args = { ... } }
-      return ret
-    else
-      return func(...)
-    end
-  end
-end
-
--- Run some code at the start of the child process, before running the test
--- itself. Is supposed to be run in `before_each`.
---- @param func function
-local function child_call_once(func, ...)
-  if child_pid ~= 0 then
-    child_calls_mod_once[#child_calls_mod_once + 1] = { func = func, args = { ... } }
-  else
-    func(...)
-  end
-end
-
-local child_cleanups_mod_once = nil --- @type ChildCall[]?
-
--- Run some code at the end of the child process, before exiting. Is supposed to
--- be run in `before_each` because `after_each` is run after child has exited.
-local function child_cleanup_once(func, ...)
-  local child_cleanups = child_cleanups_mod_once
-  if child_pid ~= 0 then
-    child_cleanups[#child_cleanups + 1] = { func = func, args = { ... } }
-  else
-    func(...)
-  end
-end
-
--- Unittests are run from debug nvim binary in lua interpreter mode.
 local libnvim = ffi.C
 
 local lib = setmetatable({}, {
-  __index = only_separate(function(_, idx)
+  __index = function(_, idx)
     return libnvim[idx]
-  end),
-  __newindex = child_call(function(_, idx, val)
+  end,
+  __newindex = function(_, idx, val)
     libnvim[idx] = val
-  end),
+  end,
 })
 
 -- a Set that keeps around the lines we've already seen
@@ -144,26 +80,6 @@ end
 
 local cdef = ffi.cdef
 
---- @param preprocess_cache table<string,string>
---- @param path string
-local function cimportstr(preprocess_cache, path)
-  if imported:contains(path) then
-    return lib
-  end
-  local body = preprocess_cache[path]
-  if body == '' then
-    return lib
-  end
-  -- print(path)
-  -- print(body)
-  local ok, emsg = pcall(cdef, body)
-  -- assert(ok or emsg:match('redefine'))
-  assert(ok, emsg)
-  imported:add(path)
-
-  return lib
-end
-
 local previous_defines = [[
 typedef struct { char bytes[16]; } __attribute__((aligned(16))) __uint128_t;
 typedef struct { char bytes[16]; } __attribute__((aligned(16))) __float128;
@@ -171,63 +87,60 @@ typedef struct { char bytes[16]; } __attribute__((aligned(16))) __float128;
 
 local preprocess_cache = {} --- @type table<string,string>
 
+--- @param path string
+--- @param body string
+local function cimportstr(path, body)
+  if imported:contains(path) or body == '' then
+    return
+  end
+  local ok, emsg = pcall(cdef, body)
+  -- assert(ok or emsg:match('redefine'))
+  assert(ok, emsg)
+  imported:add(path)
+  return
+end
+
+---@param path string
+---@return string
+local function preprocess(path)
+  local body --- @type string
+  body, previous_defines = Preprocess.preprocess(previous_defines, path)
+  -- format it (so that the lines are "unique" statements), also filter out
+  -- Objective-C blocks
+  body = formatc(body)
+  body = filter_complex_blocks(body)
+  -- add the formatted lines to a set
+  local new_cdefs = Set:new()
+  for line in body:gmatch('[^\r\n]+') do
+    line = trim(line)
+    -- give each #pragma pack a unique id, so that they don't get removed
+    -- if they are inserted into the set
+    -- (they are needed in the right order with the struct definitions,
+    -- otherwise luajit has wrong memory layouts for the structs)
+    if line:match('#pragma%s+pack') then
+      --- @type string
+      line = line .. ' // ' .. pragma_pack_id
+      pragma_pack_id = pragma_pack_id + 1
+    end
+    new_cdefs:add(line)
+  end
+  -- subtract the lines we've already imported from the new lines, then add
+  -- the new unique lines to the old lines (so they won't be imported again)
+  new_cdefs:diff(cdefs)
+  cdefs:union(new_cdefs)
+  -- request a sorted version of the new lines (same relative order as the
+  -- original preprocessed file) and feed that to the LuaJIT ffi
+  local new_lines = new_cdefs:to_table()
+  return table.concat(new_lines, '\n')
+end
+
 -- use this helper to import C files, you can pass multiple paths at once,
 -- this helper will return the C namespace of the nvim library.
 local function cimport(...)
   for _, path in ipairs({ ... }) do
-    if not (path:sub(1, 1) == '/' or path:sub(1, 1) == '.' or path:sub(2, 2) == ':') then
-      path = './' .. path
-    end
-    path = vim.fs.normalize(vim.fs.joinpath(vim.env.NVIM_ROOT, path))
-    -- print(path)
-    if not preprocess_cache[path] then
-      local body --- @type string
-      body, previous_defines = Preprocess.preprocess(previous_defines, path)
-      -- print(body)
-      -- format it (so that the lines are "unique" statements), also filter out
-      -- Objective-C blocks
-      if os.getenv('NVIM_TEST_PRINT_I') == '1' then
-        local lnum = 0
-        for line in body:gmatch('[^\n]+') do
-          lnum = lnum + 1
-          print(lnum, line)
-        end
-      end
-      body = formatc(body)
-      body = filter_complex_blocks(body)
-      -- add the formatted lines to a set
-      local new_cdefs = Set:new()
-      for line in body:gmatch('[^\r\n]+') do
-        line = trim(line)
-        -- give each #pragma pack a unique id, so that they don't get removed
-        -- if they are inserted into the set
-        -- (they are needed in the right order with the struct definitions,
-        -- otherwise luajit has wrong memory layouts for the structs)
-        if line:match('#pragma%s+pack') then
-          --- @type string
-          line = line .. ' // ' .. pragma_pack_id
-          pragma_pack_id = pragma_pack_id + 1
-        end
-        new_cdefs:add(line)
-      end
-
-      -- subtract the lines we've already imported from the new lines, then add
-      -- the new unique lines to the old lines (so they won't be imported again)
-      new_cdefs:diff(cdefs)
-      cdefs:union(new_cdefs)
-      -- request a sorted version of the new lines (same relative order as the
-      -- original preprocessed file) and feed that to the LuaJIT ffi
-      local new_lines = new_cdefs:to_table()
-      if os.getenv('NVIM_TEST_PRINT_CDEF') == '1' then
-        for lnum, line in ipairs(new_lines) do
-          print(lnum, line)
-        end
-      end
-      body = table.concat(new_lines, '\n')
-
-      preprocess_cache[path] = body
-    end
-    cimportstr(preprocess_cache, path)
+    path = vim.fs.normalize(vim.fs.joinpath(paths.root, path))
+    preprocess_cache[path] = preprocess_cache[path] or preprocess(path)
+    cimportstr(path, preprocess_cache[path])
   end
   return lib
 end
@@ -235,25 +148,14 @@ end
 local cdef_cache = '/tmp/tmp/nffi_cdef_cache.lua'
 local function dump_cache()
   vim.fn.mkdir(vim.fs.dirname(cdef_cache), 'p')
-  assert(io.open(cdef_cache, 'w')):write('return ' .. vim.inspect(preprocess_cache))
+  local f = assert(loadstring('return ' .. vim.inspect(preprocess_cache)))
+  assert(io.open(cdef_cache, 'w')):write(string.dump(f))
 end
+-- TODO: always load cache based on timestamp of vim.v.progpath
 local function load_cache()
   local f = loadfile(cdef_cache)
   if f then
     preprocess_cache = f()
-  end
-end
-
-local function cimport_immediate(...)
-  -- local saved_pid = child_pid
-  -- child_pid = 0
-  local err, emsg = pcall(cimport, ...)
-  -- child_pid = saved_pid
-  if not err then
-    -- io.stderr:write(tostring(emsg) .. '\n')
-    print(tostring(emsg) .. '\n')
-  else
-    return lib
   end
 end
 
@@ -269,7 +171,7 @@ local function to_cstr(string)
   return cstr(#string + 1, string)
 end
 
-cimport_immediate('./test/unit/fixtures/posix.h')
+cimport('./test/unit/fixtures/posix.h')
 
 local sc = {}
 
@@ -383,17 +285,6 @@ if os.getenv('NVIM_TEST_PRINT_SYSCALLS') == '1' then
   end
 end
 
--- say:set('assertion.just_fail.positive', '%s')
--- say:set('assertion.just_fail.negative', '%s')
--- assert:register('assertion', 'just_fail', just_fail, 'assertion.just_fail.positive', 'assertion.just_fail.negative')
-
---- @type function
-local _debug_log
-
-local debug_log = only_separate(function(...)
-  return _debug_log(...)
-end)
-
 local function cppimport(path)
   return cimport(paths.test_source_path .. '/test/includes/pre/' .. path)
 end
@@ -434,20 +325,6 @@ local function kvi_new(ct)
   return kvi_init(ffi.new(ct))
 end
 
-local function make_enum_conv_tab(m, values, skip_pref, set_cb)
-  child_call_once(function()
-    local ret = {}
-    for _, v in ipairs(values) do
-      local str_v = v
-      if v:sub(1, #skip_pref) == skip_pref then
-        str_v = v:sub(#skip_pref + 1)
-      end
-      ret[tonumber(m[v])] = str_v
-    end
-    set_cb(ret)
-  end)
-end
-
 local function ptr2addr(ptr)
   return tonumber(ffi.cast('intptr_t', ffi.cast('void *', ptr)))
 end
@@ -474,9 +351,6 @@ local M = {
   NULL = ffi.cast('void*', 0),
   OK = 1,
   FAIL = 0,
-  only_separate = only_separate,
-  child_call_once = child_call_once,
-  child_cleanup_once = child_cleanup_once,
   sc = sc,
   conv_enum = conv_enum,
   array_size = array_size,
@@ -484,11 +358,10 @@ local M = {
   kvi_size = kvi_size,
   kvi_init = kvi_init,
   kvi_new = kvi_new,
-  make_enum_conv_tab = make_enum_conv_tab,
   ptr2addr = ptr2addr,
   ptr2key = ptr2key,
-  debug_log = debug_log,
 }
+
 --- @class test.unit.testutil: test.unit.testutil.module, test.testutil
 M = vim.tbl_extend('error', M, utils)
 

@@ -1,6 +1,7 @@
 local M = {}
 
 local root = assert(vim.env.NVIM_ROOT, '$NVIM_ROOT is not set')
+M.root = root
 M.include_paths = {}
 for p in
   (

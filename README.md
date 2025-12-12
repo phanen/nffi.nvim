@@ -3,8 +3,9 @@
 ## usage
 
 ```lua
-vim.env.NVIM_ROOT = '/home/phan/b/neovim'
-_G.nffi = require('nffi.cimport')
+-- pacman -S neovim-git-debug (or cloned src)
+vim.env.NVIM_ROOT = '/usr/src/debug/neovim-git/neovim/'
+_G.nffi = require('nffi')
 nffi.cimport(
   'src/nvim/globals.h',
   'src/nvim/buffer_defs.h',
