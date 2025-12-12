@@ -94,7 +94,7 @@ local lib = setmetatable({}, {
 })
 
 -- a Set that keeps around the lines we've already seen
-local cdefs_init = Set:new()
+local cdefs = Set:new()
 local imported = Set:new()
 local pragma_pack_id = 1
 
@@ -164,22 +164,16 @@ local function cimportstr(preprocess_cache, path)
   return lib
 end
 
-local previous_defines_init = [[
+local previous_defines = [[
 typedef struct { char bytes[16]; } __attribute__((aligned(16))) __uint128_t;
 typedef struct { char bytes[16]; } __attribute__((aligned(16))) __float128;
 ]]
 
-local preprocess_cache_init = {} --- @type table<string,string>
+local preprocess_cache = {} --- @type table<string,string>
 
 -- use this helper to import C files, you can pass multiple paths at once,
 -- this helper will return the C namespace of the nvim library.
 local function cimport(...)
-  local previous_defines --- @type string
-  local preprocess_cache --- @type table<string,string>
-  local cdefs
-  preprocess_cache = preprocess_cache_init
-  previous_defines = previous_defines_init
-  cdefs = cdefs_init
   for _, path in ipairs({ ... }) do
     if not (path:sub(1, 1) == '/' or path:sub(1, 1) == '.' or path:sub(2, 2) == ':') then
       path = './' .. path
@@ -236,6 +230,18 @@ local function cimport(...)
     cimportstr(preprocess_cache, path)
   end
   return lib
+end
+
+local cdef_cache = '/tmp/tmp/nffi_cdef_cache.lua'
+local function dump_cache()
+  vim.fn.mkdir(vim.fs.dirname(cdef_cache), 'p')
+  assert(io.open(cdef_cache, 'w')):write('return ' .. vim.inspect(preprocess_cache))
+end
+local function load_cache()
+  local f = loadfile(cdef_cache)
+  if f then
+    preprocess_cache = f()
+  end
 end
 
 local function cimport_immediate(...)
@@ -457,6 +463,8 @@ end
 --- @class test.unit.testutil.module
 local M = {
   cimport = cimport,
+  dump_cache = dump_cache,
+  load_cache = load_cache,
   cppimport = cppimport,
   internalize = internalize,
   ffi = ffi,
