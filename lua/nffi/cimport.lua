@@ -43,22 +43,22 @@ local function filter_complex_blocks(body)
   for line in body:gmatch('[^\r\n]+') do
     if
       not (
-        string.find(line, '(^)', 1, true) ~= nil
-        or string.find(line, '_ISwupper', 1, true)
-        or string.find(line, '_Float')
-        or string.find(line, '__s128')
-        or string.find(line, '__u128')
-        or string.find(line, 'msgpack_zone_push_finalizer')
-        or string.find(line, 'msgpack_unpacker_reserve_buffer')
-        or string.find(line, 'value_init_')
-        or string.find(line, 'UUID_NULL') -- static const uuid_t UUID_NULL = {...}
-        or string.find(line, 'inline _Bool')
+        line:find('(^)', 1, true) ~= nil
+        or line:find('_ISwupper', 1, true)
+        or line:find('_Float')
+        or line:find('__s128')
+        or line:find('__u128')
+        or line:find('msgpack_zone_push_finalizer')
+        or line:find('msgpack_unpacker_reserve_buffer')
+        or line:find('value_init_')
+        or line:find('UUID_NULL') -- static const uuid_t UUID_NULL = {...}
+        or line:find('inline _Bool')
         -- used by musl libc headers on 32-bit arches via __REDIR marco
-        or string.find(line, '__typeof__')
+        or line:find('__typeof__')
         -- used by macOS headers
-        or string.find(line, 'typedef enum : ')
-        or string.find(line, 'mach_vm_range_recipe')
-        or string.find(line, 'struct timespec')
+        or line:find('typedef enum : ')
+        or line:find('mach_vm_range_recipe')
+        or line:find('struct timespec')
       )
     then
       -- Remove GCC's extension keyword which is just used to disable warnings.
