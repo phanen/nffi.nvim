@@ -90,6 +90,9 @@ local function filter_complex_blocks(body)
       -- Remove GCC's extension keyword which is just used to disable warnings.
       line = string.gsub(line, '__extension__', '')
 
+      -- avoid redefine
+      line = (line:gsub('extern struct', 'struct'))
+
       -- HACK: remove bitfields from specific structs as luajit can't seem to handle them.
       if line:find('struct VTermState') then
         line = string.gsub(line, 'state : 8;', 'state;')
