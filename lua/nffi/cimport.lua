@@ -99,7 +99,9 @@ local function filter_complex_blocks(body)
       if line:find('VTermStringFragment') then
         line = string.gsub(line, 'size_t.*len : 30;', 'size_t len;')
       end
-      if not line:find('^%s*static%s+') then
+      if line:find('^%s*static%s+') then
+      elseif line:find('^.-%b()%s*%b{}') then
+      else
         result[#result + 1] = line
       end
     end
