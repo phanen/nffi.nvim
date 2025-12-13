@@ -8,6 +8,17 @@ local paths = utils.paths
 
 local trim = vim.trim
 
+local is_headless = #vim.api.nvim_list_uis() == 0
+local inspect = function(x)
+  return type(x) == 'string' and x or vim.inspect(x)
+end
+local p = function(...)
+  print(unpack(vim.tbl_map(inspect, { ... })))
+  if is_headless then
+    print('\n')
+  end
+end
+
 -- add some standard header locations
 for _, p in ipairs(paths.include_paths) do
   Preprocess.add_to_include_path(p)
@@ -123,7 +134,7 @@ local function preprocess(path)
   -- format it (so that the lines are "unique" statements), also filter out
   -- Objective-C blocks
   -- stylua: ignore
-  if os.getenv('NVIM_TEST_PRINT_I') == '1' then local lnum = 0 for line in body:gmatch('[^\n]+') do lnum = lnum + 1 print(lnum, line) end end
+  if os.getenv('NVIM_TEST_PRINT_I') == '1' then local lnum = 0 for line in body:gmatch('[^\n]+') do lnum = lnum + 1 p(lnum, line) end end
   body = formatc(body)
   body = filter_complex_blocks(body)
   -- add the formatted lines to a set
@@ -149,7 +160,7 @@ local function preprocess(path)
   -- original preprocessed file) and feed that to the LuaJIT ffi
   local new_lines = new_cdefs:to_table()
   -- stylua: ignore
-  if os.getenv('NVIM_TEST_PRINT_CDEF') == '1' then for lnum, line in ipairs(new_lines) do print(lnum, line) end end
+  if os.getenv('NVIM_TEST_PRINT_CDEF') == '1' then for lnum, line in ipairs(new_lines) do p(lnum, line) end end
   return table.concat(new_lines, '\n')
 end
 
