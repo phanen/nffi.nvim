@@ -84,7 +84,6 @@ local function filter_complex_blocks(body)
         or line:find('typedef enum : ')
         or line:find('mach_vm_range_recipe')
         or line:find('struct timespec')
-        or line:find('^%s+static%s+')
       )
     then
       -- Remove GCC's extension keyword which is just used to disable warnings.
@@ -100,7 +99,9 @@ local function filter_complex_blocks(body)
       if line:find('VTermStringFragment') then
         line = string.gsub(line, 'size_t.*len : 30;', 'size_t len;')
       end
-      result[#result + 1] = line
+      if not line:find('^%s*static%s+') then
+        result[#result + 1] = line
+      end
     end
   end
 
