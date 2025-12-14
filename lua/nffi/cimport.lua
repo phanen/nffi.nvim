@@ -127,7 +127,7 @@ local function cimportstr(path, body)
   end
   local ok, emsg = pcall(cdef, body)
   -- assert(ok or emsg:match('redefine'))
-  assert(ok, emsg)
+  assert(ok, ('%s: %s'):format(path, emsg))
   imported:add(path)
   return
 end
