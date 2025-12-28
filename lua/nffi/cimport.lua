@@ -180,7 +180,7 @@ local function cimport(...)
   end
   for _, path in ipairs({ ... }) do
     local pathkey = vim.fs.normalize(vim.fs.joinpath(paths.root, path))
-    preprocess_cache[pathkey] = preprocess_cache[path] or preprocess(path)
+    preprocess_cache[pathkey] = preprocess_cache[pathkey] or preprocess(path)
     cimportstr(path, preprocess_cache[pathkey])
   end
   return lib
