@@ -23,3 +23,4 @@ api.nvim_create_autocmd({ 'FileType' }, {
 
 ## credits
 * https://github.com/neovim/neovim/blob/93526754a9e98a835d58e8ee7ba87d8410c064cf/test/unit/testutil.lua#L898
+* https://luajit.org/ext_ffi_semantics.html
